@@ -67,7 +67,7 @@ class Transform(BaseEstimator, TransformerMixin):
         representation_params = self.signal_representation.params
         representation_name = self.signal_representation.name
         filter_name = self.get_filter_name()
-
+        
         transformation = self.signal_representation.func(X, **representation_params)
         features_df = pd.DataFrame()
 
@@ -79,10 +79,25 @@ class Transform(BaseEstimator, TransformerMixin):
                 X, metric.func, transformation, metric_params
             )
 
-            if len(metric_results.columns) == 1:
+            harmonics = metric_params.get("harmonics", [])
+
+            if len(metric_results.columns) == 1 & (harmonics == []):
                 metric_results = metric_results.rename(
                     columns={0: f"{representation_name}/{metric_name}/{filter_name}"}
-                )
+            ) if filter_name is not None else metric_results.rename(
+                    columns={0: f"{representation_name}/{metric_name}"}
+            )
+                
+            elif len(metric_results.columns) == 1 & (harmonics != []):
+        
+                if (filter_name == 'global') | (filter_name == 'custom'):
+                            filter_name = None
+
+                metric_results = metric_results.rename(
+                    columns={0: f"{representation_name}/{harmonics[0]}x-{metric_name}/{filter_name}"}
+                ) if filter_name is not None else metric_results.rename(
+                    columns={0: f"{representation_name}/{harmonics[0]}x-{metric_name}"})
+                
             elif len(metric_results.columns) > 1:
                 # TODO: Define a logic for naming sidebands
 
@@ -111,19 +126,36 @@ class Transform(BaseEstimator, TransformerMixin):
                         metric_results = metric_results.rename(
                             columns={i: column_names[i] for i in metric_results.columns}
                         )
+
                     elif len(harmonics) > 1:
-                        # LOGIC FOR NAMING HARMONICS
+
+                        if (filter_name == 'global') | (filter_name == 'custom'):
+                            filter_name = None
+ 
                         metric_results = metric_results.rename(
-                            columns={
-                                i: f"{representation_name}/{metric_name}_{harmonics[i]}{feature_identifier}/{filter_name}"
-                                for i in metric_results.columns
-                            }
-                        )
+                        columns={
+                            i: f"{representation_name}/{float(harmonics[i])}x-{metric_name}/{filter_name}"
+                            for i in metric_results.columns
+                        }
+                        ) if filter_name is not None else metric_results.rename(
+                        columns={
+                            i: f"{representation_name}/{float(harmonics[i])}x-{metric_name}"
+                            for i in metric_results.columns
+                        })
 
                 else:
+
+                    if isinstance(metric_results.columns,pd.RangeIndex):
+                        metric_results.columns += 1
+
                     metric_results = metric_results.rename(
                         columns={
-                            i: f"{representation_name}/{metric_name}_{i+1}{feature_identifier}/{filter_name}"
+                            i: f"{representation_name}/{i}.0x-{metric_name}/{filter_name}"
+                            for i in metric_results.columns
+                        }
+                    ) if filter_name is not None else metric_results.rename(
+                        columns={
+                            i: f"{representation_name}/{i}.0x-{metric_name}"
                             for i in metric_results.columns
                         }
                     )
